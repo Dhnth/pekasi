@@ -2,12 +2,15 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { ToggleLeft, ToggleRight, Calendar, Clock, Save, AlertCircle, X, Loader2 } from 'lucide-react'
+import { wibToUTC, utcToWIBForInput } from '@/lib/utils'
+import { ToggleLeft, ToggleRight, Calendar, Clock, Save, AlertCircle, X, Loader2, LogOut } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Link from 'next/link'
 
 export default function SettingsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [saving, setSaving] = useState(false)
   const [formStatus, setFormStatus] = useState<'open' | 'closed'>('closed')
   const [openTime, setOpenTime] = useState('')
@@ -18,7 +21,7 @@ export default function SettingsPage() {
     setTimeout(() => setError({ show: false, message: '' }), 3000)
   }
 
-  // Cek login
+  // Cek login dengan Supabase Session
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -41,15 +44,42 @@ export default function SettingsPage() {
         .single()
       
       if (statusData) setFormStatus(statusData.value as 'open' | 'closed')
-      if (timeData) {
-        // Format datetime-local dari timestamp
-        const date = new Date(timeData.value)
-        setOpenTime(date.toISOString().slice(0, 16))
+      if (timeData && timeData.value) {
+        // Konversi UTC dari database ke WIB untuk ditampilkan di input
+        const wibTime = utcToWIBForInput(timeData.value)
+        setOpenTime(wibTime)
+      } else {
+        // Default: besok jam 06:30 WIB
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        tomorrow.setHours(6, 30, 0, 0)
+        // Konversi ke WIB string
+        const year = tomorrow.getFullYear()
+        const month = String(tomorrow.getMonth() + 1).padStart(2, '0')
+        const day = String(tomorrow.getDate()).padStart(2, '0')
+        const hours = String(tomorrow.getHours()).padStart(2, '0')
+        const minutes = String(tomorrow.getMinutes()).padStart(2, '0')
+        setOpenTime(`${year}-${month}-${day}T${hours}:${minutes}`)
       }
       setLoading(false)
+      setCheckingAuth(false)
     }
     checkAuth()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push('/login')
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [router])
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    localStorage.removeItem('isAdmin')
+    router.push('/')
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -66,23 +96,26 @@ export default function SettingsPage() {
       return
     }
     
-    // Update open_time (konversi ke WIB)
-    const openTimeISO = new Date(openTime).toISOString()
+    // Konversi WIB ke UTC sebelum disimpan
+    const openTimeUTC = wibToUTC(openTime)
+    
     const { error: timeError } = await supabase
       .from('settings')
-      .update({ value: openTimeISO, updated_at: new Date().toISOString() })
+      .update({ value: openTimeUTC, updated_at: new Date().toISOString() })
       .eq('key', 'open_time')
     
     if (timeError) {
       showError('Gagal menyimpan waktu: ' + timeError.message)
     } else {
       showError('Pengaturan berhasil disimpan!')
+      // Refresh data setelah save
+      setTimeout(() => window.location.reload(), 1500)
     }
     
     setSaving(false)
   }
 
-  if (loading) return (
+  if (checkingAuth || loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
@@ -140,23 +173,30 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-500">Buka/Tutup Form Literasi</p>
             </div>
           </div>
-          <button
-            onClick={() => router.push('/admin')}
-            className="text-gray-400 hover:text-gray-600 transition text-sm"
-          >
-            Kembali
-          </button>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin"
+              className="text-gray-400 hover:text-gray-600 transition text-sm"
+            >
+              Dashboard
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-gray-400 hover:text-red-500 transition"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-6">
-          {/* Status Form */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Status Formulir
             </label>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setFormStatus('open')}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition ${
@@ -187,7 +227,6 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          {/* Waktu Pembukaan */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Waktu Pembukaan (WIB)
@@ -202,11 +241,10 @@ export default function SettingsPage() {
               />
             </div>
             <p className="text-xs text-gray-400 mt-2">
-              Waktu yang ditampilkan di halaman tunggu
+              Pilih waktu dalam WIB. Contoh: 24 April 2026 jam 06:30
             </p>
           </div>
 
-          {/* Tombol Save */}
           <button
             onClick={handleSave}
             disabled={saving}
@@ -226,7 +264,6 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* Info Tambahan */}
         <div className="mt-4 text-center text-xs text-gray-400">
           <p>Halaman pengaturan ini hanya bisa diakses oleh admin</p>
         </div>

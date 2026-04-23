@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { BookOpen, Send, CheckCircle, Sparkles, AlertCircle, X, Book } from 'lucide-react'
+import { isFormOpen } from '@/lib/utils'
+import { BookOpen, Send, CheckCircle, Sparkles, AlertCircle, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const KELAS_X = [
@@ -30,20 +31,28 @@ export default function HomePage() {
   // Cek status form dari database
   useEffect(() => {
     const checkFormStatus = async () => {
-      const { data, error } = await supabase
+      const { data: statusData } = await supabase
         .from('settings')
         .select('value')
         .eq('key', 'form_status')
         .single()
 
-      if (!error && data) {
-        if (data.value === 'closed') {
-          router.push('/tunggu')
-        } else {
+      const { data: timeData } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'open_time')
+        .single()
+
+      if (statusData && statusData.value === 'closed' && timeData) {
+        if (isFormOpen(timeData.value)) {
           setFormStatus('open')
+        } else {
+          setFormStatus('closed')
+          router.push('/tunggu')
         }
+      } else {
+        setFormStatus('open')
       }
-      setFormStatus('open')
     }
     checkFormStatus()
   }, [router])
@@ -87,7 +96,7 @@ export default function HomePage() {
   }
 
   if (formStatus === 'closed') {
-    return null // Redirect sudah terjadi di useEffect
+    return null
   }
 
   return (
@@ -229,8 +238,7 @@ export default function HomePage() {
             href="/kesan-buku"
             className="inline-flex items-center gap-2 text-emerald-600 text-sm hover:underline"
           >
-            <Book />
-             Lihat semua kesan buku dari peserta
+            📖 Lihat semua kesan buku dari peserta
           </a>
         </div>
       </main>

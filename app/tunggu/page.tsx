@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
+import { utcToWIBForInput } from '@/lib/utils'
 import { Clock, Calendar, BookOpen, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
 
@@ -26,10 +27,11 @@ export default function TungguPage() {
   useEffect(() => {
     if (!openTime) return
 
-    const targetDate = new Date(openTime)
     const interval = setInterval(() => {
       const now = new Date()
-      const diff = targetDate.getTime() - now.getTime()
+      const utcTarget = new Date(openTime)
+      const targetWIB = new Date(utcTarget.getTime() + (7 * 60 * 60 * 1000))
+      const diff = targetWIB.getTime() - now.getTime()
 
       if (diff <= 0) {
         clearInterval(interval)
@@ -48,6 +50,20 @@ export default function TungguPage() {
     return () => clearInterval(interval)
   }, [openTime])
 
+  const formatDisplayTime = () => {
+    if (!openTime) return 'Memuat...'
+    const wibDate = utcToWIBForInput(openTime)
+    return new Date(wibDate).toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta'
+    })
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-white flex items-center justify-center p-4">
       <motion.div
@@ -55,7 +71,6 @@ export default function TungguPage() {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full text-center"
       >
-        {/* Icon Animasi */}
         <motion.div
           animate={{ 
             scale: [1, 1.1, 1],
@@ -77,7 +92,6 @@ export default function TungguPage() {
           Silakan tunggu hingga waktu yang telah ditentukan.
         </p>
 
-        {/* Countdown Timer */}
         {openTime && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
             <div className="flex items-center justify-center gap-2 text-emerald-600 mb-4">
@@ -85,15 +99,7 @@ export default function TungguPage() {
               <span className="text-sm">Akan dibuka pada:</span>
             </div>
             <div className="text-sm text-gray-600 mb-4">
-              {new Date(openTime).toLocaleDateString('id-ID', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                timeZone: 'Asia/Jakarta'
-              })} WIB
+              {formatDisplayTime()} WIB
             </div>
             <div className="grid grid-cols-4 gap-2">
               <div className="bg-emerald-50 rounded-xl p-2">
@@ -118,7 +124,7 @@ export default function TungguPage() {
 
         <div className="flex items-center justify-center gap-2 text-gray-400 text-sm">
           <BookOpen className="w-4 h-4" />
-          <span>Literasi</span>
+          <span>Literasi </span>
         </div>
       </motion.div>
     </div>

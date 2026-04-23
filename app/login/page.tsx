@@ -19,7 +19,6 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setLoading(true)
 
-    // Login dengan email fixed + password
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: 'fathangunawan19@gmail.com',
       password: password,
@@ -78,7 +77,7 @@ export default function LoginPage() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Password
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="password"
               value={password}
@@ -92,7 +91,7 @@ export default function LoginPage() {
               whileTap={{ scale: 0.95 }}
               onClick={handleLogin}
               disabled={loading}
-              className="bg-emerald-600 text-white px-5 rounded-xl hover:bg-emerald-700 transition disabled:opacity-50"
+              className="bg-emerald-600 text-white px-5 py-3 rounded-xl hover:bg-emerald-700 transition disabled:opacity-50 flex items-center justify-center"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
             </motion.button>
