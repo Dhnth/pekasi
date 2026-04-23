@@ -97,9 +97,6 @@ export default function LoginPage() {
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
             </motion.button>
           </div>
-          <p className="text-xs text-gray-400 mt-4 text-center">
-            Email: fathangunawan19@gmail.com
-          </p>
         </div>
       </motion.div>
     </div>

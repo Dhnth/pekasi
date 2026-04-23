@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { BookOpen, Send, CheckCircle, Sparkles, AlertCircle, X } from 'lucide-react'
+import { BookOpen, Send, CheckCircle, Sparkles, AlertCircle, X, Book } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const KELAS_X = [
@@ -229,7 +229,8 @@ export default function HomePage() {
             href="/kesan-buku"
             className="inline-flex items-center gap-2 text-emerald-600 text-sm hover:underline"
           >
-            📖 Lihat semua kesan buku dari peserta
+            <Book />
+             Lihat semua kesan buku dari peserta
           </a>
         </div>
       </main>
