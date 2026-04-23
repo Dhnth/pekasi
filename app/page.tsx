@@ -12,7 +12,8 @@ const KELAS_X = [
   'X MPLB 1', 'X MPLB 2', 'X MPLB 3',
   'X PPLG 1', 'X PPLG 2',
   'X BS 1', 'X BS 2',
-  'X DKV 1', 'X DKV 2'
+  'X DKV 1', 'X DKV 2',
+  'X BCF'
 ]
 
 export default function HomePage() {
