@@ -1,5 +1,6 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { BookOpen, Send, CheckCircle, Sparkles, AlertCircle, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -14,8 +15,10 @@ const KELAS_X = [
 ]
 
 export default function HomePage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [formStatus, setFormStatus] = useState<'loading' | 'open' | 'closed'>('loading')
   const [error, setError] = useState<{ show: boolean; message: string }>({ show: false, message: '' })
   const [form, setForm] = useState({
     nama: '',
@@ -23,6 +26,27 @@ export default function HomePage() {
     judul: '',
     kesan: ''
   })
+
+  // Cek status form dari database
+  useEffect(() => {
+    const checkFormStatus = async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'form_status')
+        .single()
+
+      if (!error && data) {
+        if (data.value === 'closed') {
+          router.push('/tunggu')
+        } else {
+          setFormStatus('open')
+        }
+      }
+      setFormStatus('open')
+    }
+    checkFormStatus()
+  }, [router])
 
   const showError = (message: string) => {
     setError({ show: true, message })
@@ -51,9 +75,23 @@ export default function HomePage() {
     }
   }
 
+  if (formStatus === 'loading') {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-500">Memuat...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (formStatus === 'closed') {
+    return null // Redirect sudah terjadi di useEffect
+  }
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Custom Error Modal */}
       <AnimatePresence>
         {error.show && (
           <motion.div
@@ -78,7 +116,6 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
       <header className="bg-emerald-600 text-white py-6 px-4 shadow-sm">
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-3">
@@ -91,10 +128,8 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-md mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Nama */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nama Lengkap
@@ -109,7 +144,6 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Kelas */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Kelas
@@ -127,7 +161,6 @@ export default function HomePage() {
             </select>
           </div>
 
-          {/* Judul Buku */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Judul Buku
@@ -142,7 +175,6 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Kesan */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Bagian yang paling berkesan
@@ -161,7 +193,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Submit Button */}
           <motion.button
             type="submit"
             disabled={loading}
@@ -179,7 +210,6 @@ export default function HomePage() {
           </motion.button>
         </form>
 
-        {/* Success Toast */}
         <AnimatePresence>
           {success && (
             <motion.div
@@ -193,6 +223,15 @@ export default function HomePage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <div className="mt-6 text-center">
+          <a
+            href="/kesan-buku"
+            className="inline-flex items-center gap-2 text-emerald-600 text-sm hover:underline"
+          >
+            📖 Lihat semua kesan buku dari peserta
+          </a>
+        </div>
       </main>
     </div>
   )

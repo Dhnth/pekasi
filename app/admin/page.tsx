@@ -6,10 +6,11 @@ import { toWIB } from '@/lib/utils'
 import * as XLSX from 'xlsx-js-style'
 import { 
   Users, Download, Filter, ChevronRight, LogOut, 
-  BookOpen, Calendar, Sparkles, Loader2,
-  Search, X, Clock, FileDown, AlertCircle
+  BookOpen, Calendar, Sparkles, Loader2, FileSpreadsheet,
+  Search, X, Clock, FileDown, AlertCircle, Settings
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Link from 'next/link'
 
 type Peserta = {
   id: number
@@ -32,16 +33,35 @@ export default function AdminPage() {
   const [search, setSearch] = useState('')
   const [exportKelas, setExportKelas] = useState('')
   const [errorAlert, setErrorAlert] = useState<{ show: boolean; message: string }>({ show: false, message: '' })
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const observerTarget = useRef<HTMLDivElement>(null)
 
-  // Cek login
+  // Cek login - PAKAI SUPABASE SESSION, BUKAN LOCALSTORAGE
   useEffect(() => {
-    const isAdmin = localStorage.getItem('isAdmin')
-    if (!isAdmin) router.push('/login')
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.push('/login')
+        return
+      }
+      setCheckingAuth(false)
+    }
+    checkAuth()
+
+    // Subscribe ke perubahan auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push('/login')
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [router])
 
   // Ambil SEMUA data dari Supabase
   useEffect(() => {
+    if (checkingAuth) return
+    
     const fetchAllData = async () => {
       setLoading(true)
       const { data, error } = await supabase
@@ -55,7 +75,7 @@ export default function AdminPage() {
       setLoading(false)
     }
     fetchAllData()
-  }, [])
+  }, [checkingAuth])
 
   // Filter data - COMPUTED VALUE
   const getFilteredData = useCallback(() => {
@@ -99,6 +119,13 @@ export default function AdminPage() {
     setTimeout(() => setErrorAlert({ show: false, message: '' }), 3000)
   }
 
+  // Logout function
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    localStorage.removeItem('isAdmin') // Hapus juga localStorage untuk jaga-jaga
+    router.push('/')
+  }
+
   // Infinite scroll observer
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -121,11 +148,10 @@ export default function AdminPage() {
     return () => observer.disconnect()
   }, [hasMore, loadingMore])
 
-  // Export Excel dengan custom error modal
+  // Export Excel
   const exportToExcel = () => {
     let filtered = allData
     
-    // Filter berdasarkan kelas yang dipilih untuk export
     if (exportKelas && exportKelas !== 'semua') {
       filtered = filtered.filter(p => p.kelas === exportKelas)
     }
@@ -135,17 +161,14 @@ export default function AdminPage() {
       return
     }
 
-    // Urutkan dari yang terbaru
     filtered = [...filtered].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )
 
-    // Escape karakter khusus untuk Excel
     const escapeText = (text: string) => {
       return text.replace(/"/g, '""')
     }
 
-    // Buat data array untuk styling manual
     const data = [
       ['No', 'Nama Lengkap', 'Kelas', 'Judul Buku', 'Tanggal Input', 'Jam Input'],
       ...filtered.map((p, idx) => [
@@ -158,31 +181,22 @@ export default function AdminPage() {
       ])
     ]
 
-    // Buat worksheet dari array
     const ws = XLSX.utils.aoa_to_sheet(data)
 
-    // Set lebar kolom
     ws['!cols'] = [
       { wch: 8 }, { wch: 32 }, { wch: 18 }, { wch: 48 }, { wch: 15 }, { wch: 12 }
     ]
 
-    // Set tinggi baris header
     ws['!rows'] = [{ hpt: 24 }]
 
     const headerGreen = "006633"
     const stripeGreen = "F0FFF0"
     const borderColor = "CCCCCC"
 
-    // STYLING HEADER
     for (let C = 0; C < 6; C++) {
       const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C })
       ws[cellAddress].s = {
-        font: { 
-          bold: true, 
-          color: { rgb: "FFFFFF" }, 
-          sz: 11,
-          name: "Calibri"
-        },
+        font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11, name: "Calibri" },
         fill: { fgColor: { rgb: headerGreen } },
         alignment: { horizontal: "center", vertical: "center" },
         border: {
@@ -194,7 +208,6 @@ export default function AdminPage() {
       }
     }
 
-    // STYLING DATA CELLS
     for (let R = 1; R < data.length; R++) {
       const isEven = R % 2 === 0
       const rowGreen = isEven ? stripeGreen : "FFFFFF"
@@ -204,10 +217,7 @@ export default function AdminPage() {
         ws[cellAddress].s = {
           font: { sz: 10, name: "Calibri" },
           fill: { fgColor: { rgb: rowGreen } },
-          alignment: { 
-            horizontal: C === 0 ? "center" : "left", 
-            vertical: "center" 
-          },
+          alignment: { horizontal: C === 0 ? "center" : "left", vertical: "center" },
           border: {
             top: { style: "thin", color: { rgb: borderColor } },
             bottom: { style: "thin", color: { rgb: borderColor } },
@@ -218,7 +228,6 @@ export default function AdminPage() {
       }
     }
 
-    // BORDER LUAR TABEL
     const lastRow = data.length - 1
     const lastCol = 5
     
@@ -256,7 +265,7 @@ export default function AdminPage() {
     return acc
   }, {} as Record<string, number>)
 
-  if (loading) return (
+  if (checkingAuth || loading) return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
@@ -267,7 +276,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Custom Error Modal */}
       <AnimatePresence>
         {errorAlert.show && (
           <motion.div
@@ -303,17 +311,24 @@ export default function AdminPage() {
               <p className="text-xs text-gray-500">Literasi KRP</p>
             </div>
           </div>
-          <button
-            onClick={() => { localStorage.removeItem('isAdmin'); router.push('/') }}
-            className="text-gray-400 hover:text-red-500 transition"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/settings"
+              className="text-gray-400 hover:text-emerald-600 transition"
+            >
+              <Settings className="w-5 h-5" />
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-gray-400 hover:text-red-500 transition"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {/* Stat Cards */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 text-emerald-600 mb-1">
@@ -331,7 +346,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Filter Bar */}
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm mb-6">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
@@ -375,7 +389,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Export Section */}
         <div className="bg-gradient-to-r from-emerald-50 to-white rounded-2xl p-4 border border-emerald-100 shadow-sm mb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between">
             <div className="flex items-center gap-2">
@@ -411,7 +424,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Data Cards */}
         <div className="space-y-3">
           {displayData.map((p, idx) => (
             <motion.div
@@ -446,7 +458,6 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Loading More Trigger */}
         {displayData.length > 0 && (
           <div ref={observerTarget} className="py-8 flex justify-center">
             {loadingMore && (
@@ -461,7 +472,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Empty State */}
         {displayData.length === 0 && totalFiltered === 0 && (
           <div className="text-center py-12">
             <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -469,7 +479,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Gacha Link */}
         <div className="mt-8 text-center">
           <a
             href="/gacha"
