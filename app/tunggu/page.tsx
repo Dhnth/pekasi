@@ -27,16 +27,25 @@ export default function TungguPage() {
   useEffect(() => {
     if (!openTime) return
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const now = new Date()
       const targetUTC = new Date(openTime)
-      
-      // Tidak perlu konversi ke WIB untuk diff
-      // Langsung bandingkan UTC dengan UTC
       const diff = targetUTC.getTime() - now.getTime()
 
       if (diff <= 0) {
         clearInterval(interval)
+        
+        // UPDATE FORM_STATUS MENJADI OPEN DI DATABASE
+        const { error } = await supabase
+          .from('settings')
+          .update({ value: 'open', updated_at: new Date().toISOString() })
+          .eq('key', 'form_status')
+        
+        if (error) {
+          console.error('Gagal update status form:', error)
+        }
+        
+        // Redirect ke halaman utama
         window.location.href = '/'
         return
       }
@@ -54,7 +63,6 @@ export default function TungguPage() {
 
   const formatDisplayTime = () => {
     if (!openTime) return 'Memuat...'
-    // Pakai utcToWIBForInput dari utils yang sudah benar
     const wibDate = utcToWIBForInput(openTime)
     const date = new Date(wibDate)
     return date.toLocaleDateString('id-ID', {
@@ -64,7 +72,6 @@ export default function TungguPage() {
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-      // Hapus timeZone karena wibDate sudah dalam WIB
     })
   }
 
@@ -128,8 +135,7 @@ export default function TungguPage() {
 
         <div className="flex items-center justify-center gap-2 text-gray-400 text-sm">
           <BookOpen className="w-4 h-4" />
-          <span>Literasi KRP</span>
-          <Sparkles className="w-4 h-4" />
+          <span>Literasi </span>
         </div>
       </motion.div>
     </div>

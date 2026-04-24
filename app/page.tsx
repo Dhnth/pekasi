@@ -12,8 +12,7 @@ const KELAS_X = [
   'X MPLB 1', 'X MPLB 2', 'X MPLB 3',
   'X PPLG 1', 'X PPLG 2',
   'X BS 1', 'X BS 2',
-  'X DKV 1', 'X DKV 2',
-  'X BCF'
+  'X DKV 1', 'X DKV 2'
 ]
 
 export default function HomePage() {
@@ -29,7 +28,7 @@ export default function HomePage() {
     kesan: ''
   })
 
-  // Cek status form dari database
+  // Cek status form dari database dengan SUBSCRIPTION realtime
   useEffect(() => {
     const checkFormStatus = async () => {
       const { data: statusData } = await supabase
@@ -51,11 +50,32 @@ export default function HomePage() {
           setFormStatus('closed')
           router.push('/tunggu')
         }
+      } else if (statusData && statusData.value === 'open') {
+        setFormStatus('open')
       } else {
         setFormStatus('open')
       }
     }
     checkFormStatus()
+
+    // SUBSCRIBE ke perubahan settings (realtime)
+    const channel = supabase
+      .channel('settings-changes')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'settings', filter: 'key=eq.form_status' },
+        (payload) => {
+          if (payload.new.value === 'open') {
+            setFormStatus('open')
+            router.push('/')
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [router])
 
   const showError = (message: string) => {
